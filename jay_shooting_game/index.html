@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- 일반 메타 태그 -->
+    <meta name="description" content="제이 슈팅게임">
+    <meta name="keywords" content="박제이, 슈팅게임, 유아게임">
+    
+    <!-- 오픈그래프 메타 태그 -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="제이 슈팅게임">
+    <meta property="og:description" content="제이아빠가 만들고 제이가 게임해요">
+    <meta property="og:image" content="jay_shooting_game/images/open.png">
+    
+    <title>Jay Shooting Game</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        .game-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+        }
+        canvas {
+            background: #000;
+            border: 2px solid #333;
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        .game-stats {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        .energy-bar {
+            display: flex;
+            gap: 3px;
+        }
+        .energy-unit {
+            width: 20px;
+            height: 8px;
+            background: #4CAF50;
+            border-radius: 2px;
+        }
+        .energy-unit.empty {
+            background: #666;
+        }
+        .powerup-effect {
+            position: absolute;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 5px;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            z-index: 200;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-50px); opacity: 0; }
+        }
+        @keyframes itemGlow {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.1); filter: brightness(1.5); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+        .modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+            display: none;
+            z-index: 1000;
+        }
+        .modal button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 15px;
+            transition: background-color 0.3s;
+        }
+        .modal button:hover {
+            background: #45a049;
+        }
+        .joystick-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 120px;
+            height: 120px;
+            display: none;
+            z-index: 300;
+        }
+        .aim-joystick-container {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 120px;
+            height: 120px;
+            display: none;
+            z-index: 300;
+        }
+        .joystick {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+        }
+        .joystick-knob {
+            position: absolute;
+            width: 40%;
+            height: 40%;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            top: 30%;
+            left: 30%;
+        }
+        .bomb-button {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 0, 0, 0.5);
+            border-radius: 50%;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 300;
+        }
+        @media (max-width: 768px) {
+            .joystick-container, .aim-joystick-container, .bomb-button {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <audio id="bgm1" loop>
+            <source src="jay_shooting_game/music/bgm1.mp3" type="audio/mp3">
+        </audio>
+        <audio id="bgm2" loop>
+            <source src="jay_shooting_game/music/bgm2.mp3" type="audio/mp3">
+        </audio>
+        <audio id="bgm3" loop>
+            <source src="jay_shooting_game/music/bgm3.mp3" type="audio/mp3">
+        </audio>
+        <audio id="itemSound" src="jay_shooting_game/sounds/item.mp3"></audio>
+        <audio id="shootSound" src="jay_shooting_game/sounds/shoot.mp3"></audio>
+        <audio id="explosionSound" src="jay_shooting_game/sounds/explosion.mp3"></audio>
+        <audio id="damageSound" src="jay_shooting_game/sounds/damage.mp3"></audio>
+        <audio id="levelUpSound" src="jay_shooting_game/sounds/levelup.mp3"></audio>
+        <audio id="gameOverSound" src="jay_shooting_game/sounds/gameover.mp3"></audio>
+        <div class="game-stats">
+            <div class="energy-bar" id="energyBar"></div>
+            <div>💣 x <span id="bombCount">0</span></div>
+            <div>Score: <span id="score">0</span></div>
+            <div>Level <span id="levelDisplay">1</span></div>
+        </div>
+        <div class="modal" id="startModal">
+            <h2>Jay Shooting Game</h2>
+            <p>방향키로 이동<br>마우스로 조준<br>스페이스바로 폭탄 사용</p>
+            <button onclick="startGame()">게임 시작</button>
+        </div>
+        <div class="modal" id="gameOverModal">
+            <h2>게임 오버</h2>
+            <p>최종 점수: <span id="finalScore">0</span></p>
+            <button onclick="restartGame()">다시 시작</button>
+        </div>
+        <div class="joystick-container">
+            <div class="joystick">
+                <div class="joystick-knob"></div>
+            </div>
+        </div>
+        <div class="aim-joystick-container">
+            <div class="joystick">
+                <div class="joystick-knob"></div>
+            </div>
+        </div>
+        <div class="bomb-button">💣</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const energyBar = document.getElementById('energyBar');
+        const scoreElement = document.getElementById('score');
+        const bombCountElement = document.getElementById('bombCount');
+        const levelDisplay = document.getElementById('levelDisplay');
+        const startModal = document.getElementById('startModal');
+        const gameOverModal = document.getElementById('gameOverModal');
+        const bgm1 = document.getElementById('bgm1');
+        const bgm2 = document.getElementById('bgm2');
+        const bgm3 = document.getElementById('bgm3');
+        const itemSound = document.getElementById('itemSound');
+        const shootSound = document.getElementById('shootSound');
+        const explosionSound = document.getElementById('explosionSound');
+        const damageSound = document.getElementById('damageSound');
+        const levelUpSound = document.getElementById('levelUpSound');
+        const gameOverSound = document.getElementById('gameOverSound');
+
+        let gameStarted = false;
+        let gameEnded = false;
+        let gameStartTime = 0;
+        let gameTime = 0;
+        let lastDifficultyUpdate = 0;
+        let score = 0;
+        let energy = 5;
+        let bombs = 0;
+        let gameLevel = 1;
+        let lastShot = 0;
+        let mouseX = 0;
+        let mouseY = 0;
+        let enemies = [];
+        let bullets = [];
+        let items = [];
+        let powerups = [];
+
+        const difficultyInterval = 30000;
+
+        const levelConfig = {
+            1: { enemyTypes: ['normal'], spawnRate: 0.01, enemySpeed: 1, background: 'jay_shooting_game/images/background1.png' },
+            2: { enemyTypes: ['normal', 'fast'], spawnRate: 0.015, enemySpeed: 1.3, background: 'jay_shooting_game/images/background2.png' },
+            3: { enemyTypes: ['normal', 'fast', 'tank'], spawnRate: 0.02, enemySpeed: 1.6, background: 'jay_shooting_game/images/background3.png' },
+            4: { enemyTypes: ['normal', 'fast', 'tank', 'splitter'], spawnRate: 0.025, enemySpeed: 1.9, background: 'jay_shooting_game/images/background4.png' },
+            5: { enemyTypes: ['normal', 'fast', 'tank', 'splitter', 'boss'], spawnRate: 0.03, enemySpeed: 2.2, background: 'jay_shooting_game/images/background5.png' }
+        };
+
+        const enemyTypes = {
+            normal: { radius: 15, color: '#ff4444', health: 1, speed: 1, score: 10, image: 'jay_shooting_game/images/enemy_normal.png' },
+            fast: { radius: 10, color: '#ffff00', health: 1, speed: 1.5, score: 15, image: 'jay_shooting_game/images/enemy_fast.png' },
+            tank: { radius: 20, color: '#8B4513', health: 3, speed: 0.7, score: 20, image: 'jay_shooting_game/images/enemy_tank.png' },
+            splitter: { radius: 25, color: '#FF1493', health: 2, speed: 0.8, score: 25, splits: true, image: 'jay_shooting_game/images/enemy_splitter.png' },
+            boss: { radius: 35, color: '#800080', health: 8, speed: 0.5, score: 50, image: 'jay_shooting_game/images/enemy_boss.png' }
+        };
+
+        const powerupState = {
+            bulletSpeed: 8,
+            bulletSize: 3,
+            fireRate: 250,
+            moveSpeed: 4
+        };
+
+        const turret = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            radius: 20,
+            baseColor: '#4CAF50',
+            barrelColor: '#2E7D32',
+            barrelLength: 30,
+            angle: 0,
+            invincible: false
+        };
+
+        const turretImage = new Image();
+        turretImage.src = 'jay_shooting_game/images/turret.png';
+
+        const turretBarrelImage = new Image();
+        turretBarrelImage.src = 'jay_shooting_game/images/turret_barrel.png';
+
+        const turretShieldImage = new Image();
+        turretShieldImage.src = 'jay_shooting_game/images/turret_shield.png';
+
+        const bulletImage = new Image();
+        bulletImage.src = 'jay_shooting_game/images/bullet.png';
+
+        const images = {
+            start: 'jay_shooting_game/images/start_image.png', // 게임 시작 이미지
+            end: 'jay_shooting_game/images/end_image.png' // 게임 종료 이미지
+        };
+
+        const mobileSettings = {
+            bulletRadius: 6,  // 모바일에서 더 큰 총알
+            bulletSpeed: 6,   // 모바일에서 더 느린 총알
+            fireRate: 400     // 모바일에서 더 느린 발사 속도
+        };
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            
+            if (windowWidth < 768) {
+                canvas.width = windowWidth * 0.95;
+                canvas.height = windowHeight * 0.7;
+            } else {
+                canvas.width = 800;
+                canvas.height = 600;
+            }
+            
+            // 포탑 위치 업데이트
+            turret.x = canvas.width / 2;
+            turret.y = canvas.height / 2;
+        }
+
+        function showEffect(message, x = turret.x, y = turret.y - 40) {
+            const effect = document.createElement('div');
+            effect.className = 'powerup-effect';
+            effect.textContent = message;
+            effect.style.left = `${x}px`;
+            effect.style.top = `${y}px`;
+            effect.style.transform = 'translate(-50%, -50%)';
+            document.querySelector('.game-container').appendChild(effect);
+            setTimeout(() => effect.remove(), 2000);
+        }
+
+        function initEnergyBar() {
+            energyBar.innerHTML = '';
+            for (let i = 0; i < 5; i++) {
+                const unit = document.createElement('div');
+                unit.className = `energy-unit ${i >= energy ? 'empty' : ''}`;
+                energyBar.appendChild(unit);
+            }
+        }
+
+        function updateEnergy() {
+            const units = document.querySelectorAll('.energy-unit');
+            units.forEach((unit, index) => {
+                unit.className = `energy-unit ${index >= energy ? 'empty' : ''}`;
+            });
+        }
+
+        function spawnEnemy() {
+            const config = levelConfig[gameLevel];
+            if (Math.random() < config.spawnRate) {
+                const side = Math.floor(Math.random() * 4);
+                let x, y;
+                
+                switch(side) {
+                    case 0: x = Math.random() * canvas.width; y = -20; break;
+                    case 1: x = canvas.width + 20; y = Math.random() * canvas.height; break;
+                    case 2: x = Math.random() * canvas.width; y = canvas.height + 20; break;
+                    case 3: x = -20; y = Math.random() * canvas.height; break;
+                }
+
+                const enemyType = config.enemyTypes[Math.floor(Math.random() * config.enemyTypes.length)];
+                const enemyConfig = enemyTypes[enemyType];
+                
+                enemies.push({
+                    x, y, type: enemyType,
+                    ...enemyConfig,
+                    baseSpeed: enemyConfig.speed * config.enemySpeed,
+                    currentHealth: enemyConfig.health
+                });
+            }
+        }
+
+        function spawnItem(x, y) {
+            const types = [
+                { type: 'speedUp', color: '#00ff00', duration: 8000 },
+                { type: 'shield', color: '#4169E1', duration: 12000 },
+                { type: 'rapidFire', color: '#FFD700', duration: 5000 },
+                { type: 'bomb', color: '#ff0000', duration: 0 },
+                { type: 'energy', color: '#00ffff', duration: 0 }
+            ];
+            const itemType = types[Math.floor(Math.random() * types.length)];
+            items.push({ x, y, ...itemType, radius: 10 });
+        }
+
+        function moveEnemies() {
+            enemies.forEach(enemy => {
+                const dx = turret.x - enemy.x;
+                const dy = turret.y - enemy.y;
+                const angle = Math.atan2(dy, dx);
+                enemy.x += Math.cos(angle) * enemy.baseSpeed;
+                enemy.y += Math.sin(angle) * enemy.baseSpeed;
+            });
+        }
+
+        function moveBullets() {
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                bullets[i].x += Math.cos(bullets[i].angle) * bullets[i].speed;
+                bullets[i].y += Math.sin(bullets[i].angle) * bullets[i].speed;
+
+                if (bullets[i].x < 0 || bullets[i].x > canvas.width ||
+                    bullets[i].y < 0 || bullets[i].y > canvas.height) {
+                    bullets.splice(i, 1);
+                }
+            }
+        }
+
+        function shoot() {
+            const now = Date.now();
+            const currentFireRate = isMobile() ? mobileSettings.fireRate : powerupState.fireRate;
+            
+            if (now - lastShot > currentFireRate) {
+                const bulletRadius = isMobile() ? mobileSettings.bulletRadius : powerupState.bulletSize;
+                const bulletSpeed = isMobile() ? mobileSettings.bulletSpeed : powerupState.bulletSpeed;
+                
+                bullets.push({
+                    x: turret.x + Math.cos(turret.angle) * turret.barrelLength,
+                    y: turret.y + Math.sin(turret.angle) * turret.barrelLength,
+                    angle: turret.angle,
+                    speed: bulletSpeed,
+                    radius: bulletRadius
+                });
+
+                const shootSound = document.getElementById('shootSound');
+                shootSound.currentTime = 0;
+                shootSound.play();
+
+                lastShot = now;
+            }
+        }
+
+        function useBomb() {
+            if (bombs > 0) {
+                bombs--;
+                bombCountElement.textContent = bombs;
+                explosionSound.currentTime = 0;
+                explosionSound.play();
+                
+                enemies.forEach(enemy => score += enemy.score);
+                enemies = [];
+                
+                showEffect('💥 BOOM!');
+                
+                const explosion = {
+                    x: turret.x,
+                    y: turret.y,
+                    radius: 0,
+                    alpha: 1
+                };
+                
+                function animateExplosion() {
+                    ctx.beginPath();
+                    ctx.arc(explosion.x, explosion.y, explosion.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 0, 0, ${explosion.alpha})`;
+                    ctx.fill();
+                    
+                    explosion.radius += 20;
+                    explosion.alpha -= 0.02;
+                    
+                    if (explosion.alpha > 0) {
+                        requestAnimationFrame(animateExplosion);
+                    }
+                }
+                
+                animateExplosion();
+            }
+        }
+
+        function checkCollisions() {
+            // 총알과 적의 충돌
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const dx = bullets[i].x - enemies[j].x;
+                    const dy = bullets[i].y - enemies[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < bullets[i].radius + enemies[j].radius) {
+                        // 총알 제거
+                        bullets.splice(i, 1);
+                        
+                        // 적 체력 감소
+                        enemies[j].currentHealth--;
+                        
+                        if (enemies[j].currentHealth <= 0) {
+                            // 적 처치 시 점수 추가
+                            const deadEnemy = enemies[j];
+                            score += deadEnemy.score;
+                            scoreElement.textContent = score;
+
+                            // 아이템 드롭 (20% 확률)
+                            if (Math.random() < 0.2) {
+                                spawnItem(deadEnemy.x, deadEnemy.y);
+                            }
+
+                            // 분열형 적 처리
+                            if (deadEnemy.type === 'splitter') {
+                                for (let k = 0; k < 2; k++) {
+                                    enemies.push({
+                                        x: deadEnemy.x,
+                                        y: deadEnemy.y,
+                                        type: 'normal',
+                                        ...enemyTypes.normal,
+                                        currentHealth: enemyTypes.normal.health,
+                                        baseSpeed: enemyTypes.normal.speed * levelConfig[gameLevel].enemySpeed
+                                    });
+                                }
+                            }
+
+                            // 적 제거
+                            enemies.splice(j, 1);
+                            
+                            // 폭발 효과음
+                            explosionSound.currentTime = 0;
+                            explosionSound.play();
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // 포탑과 적의 충돌
+            if (!turret.invincible) {
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    const dx = enemies[i].x - turret.x;
+                    const dy = enemies[i].y - turret.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < enemies[i].radius + turret.radius) {
+                        // 적 제거
+                        enemies.splice(i, 1);
+                        
+                        // 에너지 감소
+                        energy--;
+                        updateEnergy();
+                        
+                        // 데미지 효과 표시
+                        showEffect('💔 Damage!');
+                        
+                        // 데미지 효과음
+                        damageSound.currentTime = 0;
+                        damageSound.play();
+
+                        // 게임 오버 체크
+                        if (energy <= 0) {
+                            gameOver();
+                        }
+                    }
+                }
+            }
+
+            // 포탑과 아이템의 충돌
+            for (let i = items.length - 1; i >= 0; i--) {
+                const dx = items[i].x - turret.x;
+                const dy = items[i].y - turret.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < items[i].radius + turret.radius) {
+                    const item = items[i];
+                    
+                    // 아이템 효과음
+                    itemSound.currentTime = 0;
+                    itemSound.play();
+                    
+                    // 아이템 효과 적용
+                    switch(item.type) {
+                        case 'speedUp':
+                            powerupState.moveSpeed = 8;
+                            setTimeout(() => powerupState.moveSpeed = 4, item.duration);
+                            showEffect('🏃 Speed Up!');
+                            break;
+                        case 'shield':
+                            turret.invincible = true;
+                            setTimeout(() => turret.invincible = false, item.duration);
+                            showEffect('🛡️ Shield On!');
+                            break;
+                        case 'rapidFire':
+                            powerupState.fireRate = 100;
+                            setTimeout(() => powerupState.fireRate = 250, item.duration);
+                            showEffect('⚡ Rapid Fire!');
+                            break;
+                        case 'bomb':
+                            bombs++;
+                            bombCountElement.textContent = bombs;
+                            showEffect('💣 Bomb Get!');
+                            break;
+                        case 'energy':
+                            energy = Math.min(5, energy + 1);
+                            updateEnergy();
+                            showEffect('❤️ Energy Up!');
+                            break;
+                    }
+                    
+                    // 아이템 제거
+                    items.splice(i, 1);
+                }
+            }
+        }
+
+        function updateGameState() {
+            gameTime = Date.now() - gameStartTime;
+
+            // 난이도 업데이트
+            if (gameTime - lastDifficultyUpdate > difficultyInterval) {
+                const difficultyMultiplier = 1.05;
+                Object.values(levelConfig).forEach(config => {
+                    config.enemySpeed *= difficultyMultiplier;
+                    config.spawnRate = Math.min(0.1, config.spawnRate * difficultyMultiplier);
+                });
+                lastDifficultyUpdate = gameTime;
+                showEffect('⚠️ Difficulty Increased!');
+            }
+
+            // 레벨 업데이트
+            const previousLevel = gameLevel;
+            if (score >= 1100 && gameLevel < 5) {
+                gameLevel = 5;
+                bgm1.pause();
+                bgm2.pause();
+                bgm3.play();
+            }
+            else if (score >= 800 && gameLevel < 4) {
+                gameLevel = 4;
+                bgm1.pause();
+                bgm2.play();
+                bgm3.pause();
+            }
+            else if (score >= 500 && gameLevel < 3) {
+                gameLevel = 3;
+                bgm1.pause();
+                bgm2.play();
+                bgm3.pause();
+            }
+            else if (score >= 200 && gameLevel < 2) gameLevel = 2;
+            else if (score >= 1 && gameLevel < 1) gameLevel = 1;
+
+            if (previousLevel !== gameLevel) {
+                levelUpSound.currentTime = 0;
+                levelUpSound.play();
+                showEffect(`Level ${gameLevel} Started!`, canvas.width/2, canvas.height/2);
+                levelDisplay.textContent = gameLevel;
+            }
+
+            spawnEnemy();
+            moveEnemies();
+            moveBullets();
+            shoot();
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 배경 그리기
+            const bgImage = gameImages[`background${gameLevel}`];
+            if (bgImage) {
+                ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+            }
+
+            // 적 그리기
+            enemies.forEach(enemy => {
+                const enemyImg = gameImages[enemy.type];
+                if (enemyImg) {
+                    ctx.drawImage(enemyImg, 
+                        enemy.x - enemy.radius, 
+                        enemy.y - enemy.radius, 
+                        enemy.radius * 2, 
+                        enemy.radius * 2
+                    );
+                }
+                
+                // 체력바 표시
+                const healthPercent = enemy.currentHealth / enemy.health;
+                const healthBarWidth = enemy.radius * 2;
+                const healthBarHeight = 4;
+                const healthBarX = enemy.x - enemy.radius;
+                const healthBarY = enemy.y - enemy.radius - 10;
+
+                ctx.fillStyle = '#333';
+                ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+                ctx.fillStyle = '#f00';
+                ctx.fillRect(healthBarX, healthBarY, healthBarWidth * healthPercent, healthBarHeight);
+            });
+
+            // 아이템 그리기
+            items.forEach(item => {
+                const itemSize = item.radius * 2;
+                ctx.beginPath();
+                ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
+                ctx.fillStyle = item.color;
+                ctx.fill();
+                
+                ctx.fillStyle = 'white';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let itemText = '';
+                switch(item.type) {
+                    case 'speedUp': itemText = '🏃'; break;
+                    case 'shield': itemText = '🛡️'; break;
+                    case 'rapidFire': itemText = '⚡'; break;
+                    case 'bomb': itemText = '💣'; break;
+                    case 'energy': itemText = '❤️'; break;
+                }
+                ctx.fillText(itemText, item.x, item.y);
+            });
+
+            // 총알 그리기
+            bullets.forEach(bullet => {
+                if (gameImages.bullet) {
+                    ctx.save();
+                    ctx.translate(bullet.x, bullet.y);
+                    ctx.rotate(bullet.angle);
+                    ctx.drawImage(gameImages.bullet, 
+                        -bullet.radius, 
+                        -bullet.radius, 
+                        bullet.radius * 2, 
+                        bullet.radius * 2
+                    );
+                    ctx.restore();
+                }
+            });
+
+            // 1. 포탑 본체 (고정)
+            if (gameImages.turret) {
+                ctx.drawImage(gameImages.turret, 
+                    turret.x - turret.radius, 
+                    turret.y - turret.radius, 
+                    turret.radius * 2, 
+                    turret.radius * 2
+                );
+            }
+
+            // 2. 총열 (마우스 방향으로 회전)
+            if (gameImages.turretBarrel) {
+                // 총열 회전을 위한 컨텍스트 저장
+                ctx.save();
+                // 회전 중심점을 포탑 중앙으로 이동
+                ctx.translate(turret.x, turret.y);
+                // 마우스 방향으로 회전
+                ctx.rotate(turret.angle);
+                // 총열 이미지 그리기
+                ctx.drawImage(gameImages.turretBarrel, 
+                    0, -4, // 총열의 왼쪽 끝을 회전 중심점에 위치
+                    turret.barrelLength, 8
+                );
+                // 컨텍스트 복원
+                ctx.restore();
+            }
+
+            // 3. 방패 효과 (고정)
+            if (turret.invincible && gameImages.turretShield) {
+                ctx.drawImage(gameImages.turretShield,
+                    turret.x - (turret.radius + 10),
+                    turret.y - (turret.radius + 10),
+                    (turret.radius + 10) * 2,
+                    (turret.radius + 10) * 2
+                );
+            }
+        }
+
+        function showStartImage() {
+            const startImage = new Image();
+            startImage.src = images.start;
+            startImage.onload = () => {
+                ctx.drawImage(startImage, 0, 0, canvas.width, canvas.height);
+            };
+        }
+
+        function showEndImage() {
+            const endImage = new Image();
+            endImage.src = images.end;
+            endImage.onload = () => {
+                ctx.drawImage(endImage, 0, 0, canvas.width, canvas.height);
+            };
+        }
+
+        function gameLoop() {
+            if (!gameStarted || gameEnded) return;
+            
+            updateGameState();
+            checkCollisions();
+            render();
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            if (!gameStarted) {
+                gameStarted = true;
+                gameEnded = false;
+                gameStartTime = Date.now();
+                lastDifficultyUpdate = gameStartTime;
+                
+                // 시작 모달 숨기기
+                startModal.style.display = 'none';
+                
+                // 캔버스 크기 설정
+                resizeCanvas();
+                
+                // 포탑 초기 위치 설정
+                turret.x = canvas.width / 2;
+                turret.y = canvas.height / 2;
+                
+                // 에너지바 초기화
+                energy = 5;
+                initEnergyBar();
+                
+                // BGM 재생
+                bgm1.currentTime = 0;
+                bgm1.play();
+                bgm2.pause();
+                bgm3.pause();
+
+                // 모바일 컨트롤 표시
+                if ('ontouchstart' in window) {
+                    document.querySelector('.joystick-container').style.display = 'block';
+                    document.querySelector('.bomb-button').style.display = 'flex';
+                }
+
+                // 마우스 이벤트 리스너 등록
+                canvas.addEventListener('mousemove', (e) => {
+                    const rect = canvas.getBoundingClientRect();
+                    mouseX = e.clientX - rect.left;
+                    mouseY = e.clientY - rect.top;
+                    
+                    // 총열 회전 각도 업데이트
+                    turret.angle = Math.atan2(mouseY - turret.y, mouseX - turret.x);
+                });
+
+                // 게임 루프 시작
+                gameLoop();
+            }
+        }
+
+        function gameOver() {
+            gameEnded = true;
+            gameStarted = false;
+
+            // BGM 정지
+            bgm1.pause();
+            bgm2.pause();
+            bgm3.pause();
+
+            // 게임 오버 사운드
+            gameOverSound.currentTime = 0;
+            gameOverSound.play();
+
+            // 최종 점수 표시
+            document.getElementById('finalScore').textContent = score;
+            gameOverModal.style.display = 'block';
+
+            // 모바일 재시작 버튼 이벤트 추가
+            if ('ontouchstart' in window) {
+                const restartButton = document.querySelector('#gameOverModal button');
+                restartButton.addEventListener('touchstart', function(e) {
+                    e.preventDefault();
+                    restartGame();
+                });
+            }
+        }
+
+        function restartGame() {
+            const gameOverModal = document.getElementById('gameOverModal');
+            gameOverModal.style.display = 'none';
+            
+            // 게임 상태 완전 초기화
+            gameEnded = false;
+            gameStarted = false;
+            score = 0;
+            energy = 5;
+            bombs = 0;
+            gameLevel = 1;
+            gameStartTime = 0;
+            lastDifficultyUpdate = 0;
+            
+            // 모든 게임 객체 초기화
+            enemies = [];
+            bullets = [];
+            items = [];
+            
+            // 파워업 상태 초기화
+            powerupState.bulletSpeed = 8;
+            powerupState.bulletSize = 3;
+            powerupState.fireRate = 250;
+            powerupState.moveSpeed = 4;
+            turret.invincible = false;
+
+            // 레벨 설정 초기화
+            Object.keys(levelConfig).forEach(level => {
+                switch(level) {
+                    case '1':
+                        levelConfig[level].enemySpeed = 1;
+                        levelConfig[level].spawnRate = 0.01;
+                        break;
+                    case '2':
+                        levelConfig[level].enemySpeed = 1.3;
+                        levelConfig[level].spawnRate = 0.015;
+                        break;
+                    case '3':
+                        levelConfig[level].enemySpeed = 1.6;
+                        levelConfig[level].spawnRate = 0.02;
+                        break;
+                    case '4':
+                        levelConfig[level].enemySpeed = 1.9;
+                        levelConfig[level].spawnRate = 0.025;
+                        break;
+                    case '5':
+                        levelConfig[level].enemySpeed = 2.2;
+                        levelConfig[level].spawnRate = 0.03;
+                        break;
+                }
+            });
+
+            // UI 업데이트
+            scoreElement.textContent = '0';
+            bombCountElement.textContent = '0';
+            levelDisplay.textContent = '1';
+            initEnergyBar();
+
+            // 포탑 위치 초기화
+            turret.x = canvas.width / 2;
+            turret.y = canvas.height / 2;
+
+            // 게임 루프 초기화 및 시작
+            cancelAnimationFrame(gameLoop);
+            startGame();
+        }
+
+        // 윈도우 리사이즈 이벤트
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            if (!gameStarted) {
+                // 게임이 시작되지 않았을 때도 포탑 위치 중앙 유지
+                turret.x = canvas.width / 2;
+                turret.y = canvas.height / 2;
+            }
+        });
+
+        // 키보드 컨트롤
+        const keys = {
+            ArrowUp: false,
+            ArrowDown: false,
+            ArrowLeft: false,
+            ArrowRight: false,
+            Space: false
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if (gameStarted && keys.hasOwnProperty(e.code)) {
+                keys[e.code] = true;
+                if (e.code === 'Space') useBomb();
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.code)) {
+                keys[e.code] = false;
+                e.preventDefault();
+            }
+        });
+
+        // 포탑 이동
+        setInterval(() => {
+            if (!gameStarted) return;
+
+            const speed = powerupState.moveSpeed;
+            if (keys.ArrowUp) turret.y = Math.max(turret.radius, turret.y - speed);
+            if (keys.ArrowDown) turret.y = Math.min(canvas.height - turret.radius, turret.y + speed);
+            if (keys.ArrowLeft) turret.x = Math.max(turret.radius, turret.x - speed);
+            if (keys.ArrowRight) turret.x = Math.min(canvas.width - turret.radius, turret.x + speed);
+        }, 16);
+
+        // 모바일 컨트롤
+        if ('ontouchstart' in window) {
+            const moveJoystick = document.querySelector('.joystick-container .joystick');
+            const moveJoystickKnob = document.querySelector('.joystick-container .joystick-knob');
+            const aimJoystick = document.querySelector('.aim-joystick-container .joystick');
+            const aimJoystickKnob = document.querySelector('.aim-joystick-container .joystick-knob');
+            const bombButton = document.querySelector('.bomb-button');
+            
+            let moveJoystickActive = false;
+            let aimJoystickActive = false;
+            let moveStartX = 0, moveStartY = 0;
+            let aimStartX = 0, aimStartY = 0;
+
+            // 이동 조이스틱
+            moveJoystick.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                moveJoystickActive = true;
+                moveStartX = touch.clientX;
+                moveStartY = touch.clientY;
+            });
+
+            moveJoystick.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (!moveJoystickActive) return;
+
+                const touch = e.touches[0];
+                const dx = touch.clientX - moveStartX;
+                const dy = touch.clientY - moveStartY;
+                const angle = Math.atan2(dy, dx);
+                const distance = Math.min(50, Math.sqrt(dx * dx + dy * dy));
+
+                const knobX = Math.cos(angle) * distance;
+                const knobY = Math.sin(angle) * distance;
+                moveJoystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+                // 포탑 이동
+                turret.x = Math.max(turret.radius, Math.min(canvas.width - turret.radius,
+                    turret.x + Math.cos(angle) * distance * 0.1));
+                turret.y = Math.max(turret.radius, Math.min(canvas.height - turret.radius,
+                    turret.y + Math.sin(angle) * distance * 0.1));
+            });
+
+            // 조준 조이스틱
+            aimJoystick.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                aimJoystickActive = true;
+                aimStartX = touch.clientX;
+                aimStartY = touch.clientY;
+            });
+
+            aimJoystick.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (!aimJoystickActive) return;
+
+                const touch = e.touches[0];
+                const dx = touch.clientX - aimStartX;
+                const dy = touch.clientY - aimStartY;
+                const angle = Math.atan2(dy, dx);
+                const distance = Math.min(50, Math.sqrt(dx * dx + dy * dy));
+
+                const knobX = Math.cos(angle) * distance;
+                const knobY = Math.sin(angle) * distance;
+                aimJoystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+                // 총열 회전
+                turret.angle = angle;
+            });
+
+            // 조이스틱 터치 종료
+            document.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                moveJoystickActive = false;
+                aimJoystickActive = false;
+                moveJoystickKnob.style.transform = 'translate(0, 0)';
+                aimJoystickKnob.style.transform = 'translate(0, 0)';
+            });
+
+            // 폭탄 버튼
+            bombButton.addEventListener('click', useBomb);
+        }
+
+        // 페이지 로드 시 초기화
+        window.onload = function() {
+            initAudio();
+            resizeCanvas();
+            initEnergyBar();
+            
+            // 시작 모달 표시
+            startModal.style.display = 'block';
+            
+            // 초기 에너지바 설정
+            energy = 5;
+            initEnergyBar();
+            
+            // 포탑 초기 위치 설정
+            turret.x = canvas.width / 2;
+            turret.y = canvas.height / 2;
+
+            // 시작 이미지 표시
+            showStartImage();
+
+            // 모바일 터치 이벤트 추가
+            if ('ontouchstart' in window) {
+                const startButton = document.querySelector('#startModal button');
+                startButton.addEventListener('touchstart', function(e) {
+                    e.preventDefault();
+                    startGame();
+                });
+            }
+        };
+
+        // 이미지 로드 함수
+        function loadImage(src) {
+            const img = new Image();
+            img.src = src;
+            return img;
+        }
+
+        // 게임 이미지 초기화
+        const gameImages = {
+            turret: loadImage('jay_shooting_game/images/turret.png'),
+            turretBarrel: loadImage('jay_shooting_game/images/turret_barrel.png'),
+            turretShield: loadImage('jay_shooting_game/images/turret_shield.png'),
+            bullet: loadImage('jay_shooting_game/images/bullet.png'),
+            normal: loadImage('jay_shooting_game/images/enemy_normal.png'),
+            fast: loadImage('jay_shooting_game/images/enemy_fast.png'),
+            tank: loadImage('jay_shooting_game/images/enemy_tank.png'),
+            splitter: loadImage('jay_shooting_game/images/enemy_splitter.png'),
+            boss: loadImage('jay_shooting_game/images/enemy_boss.png'),
+            background1: loadImage('jay_shooting_game/images/background1.png'),
+            background2: loadImage('jay_shooting_game/images/background2.png'),
+            background3: loadImage('jay_shooting_game/images/background3.png'),
+            background4: loadImage('jay_shooting_game/images/background4.png'),
+            background5: loadImage('jay_shooting_game/images/background5.png')
+        };
+
+        // 오디오 초기화 함수 추가
+        function initAudio() {
+            const audioElements = [
+                'bgm1', 'bgm2', 'bgm3', 'itemSound', 
+                'shootSound', 'explosionSound', 'damageSound', 
+                'levelUpSound', 'gameOverSound'
+            ];
+
+            audioElements.forEach(id => {
+                const audio = document.getElementById(id);
+                if (audio) {
+                    audio.load();
+                }
+            });
+        }
+
+        // 모바일 체크 함수
+        function isMobile() {
+            return window.innerWidth <= 768;
+        }
+    </script>
+</body>
+</html>
